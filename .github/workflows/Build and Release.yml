@@ -51,13 +51,7 @@ jobs:
         echo "EEVEEVERSION=${{ github.event.inputs.EEVEEVERSION }}" >> $GITHUB_ENV
         echo "CHANGEVERSION=${{ github.event.inputs.CHANGEVERSION }}" >> $GITHUB_ENV
         echo "SPOTURL=${{ github.event.inputs.SPOTURL }}" >> $GITHUB_ENV
-        echo "VIRUSTOTALKEY=${{ secrets.VIRUSTOTALKEY }}" >> $GITHUB_ENV
         
-    - name: Set Workflow URL
-      run: |
-        echo "WORKFLOWURL=https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" >> $GITHUB_ENV
-        echo "Workflow URL is $WORKFLOWURL"
-
     - name: Set EeveeSpotify Repo if given
       if: ${{ github.event.inputs.EEVEEREPO != '' }}
       run: |
@@ -84,7 +78,7 @@ jobs:
       if: ${{ github.event.inputs.EEVEEVERSION == '' }}
       run: |
         echo "EEVEEVERSION not provided, fetching latest release tag..."
-        EEVEETAG=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ env.EEVEEREPO }}/releases/latest | jq -r .tag_name)
+        EEVEETAG=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ env.EEVEEREPO }}/releases/latest | jq -r .tag_name)
         echo "Latest release tag: $EEVEETAG"
         echo "EEVEETAG=$EEVEETAG" >> $GITHUB_ENV
         
@@ -93,7 +87,7 @@ jobs:
       id: fetch-tags
       run: |
         EEVEEVERSION="${{ env.EEVEEVERSION }}"
-        tags=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ env.EEVEEREPO }}/tags | jq -r '.[].name')
+        tags=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ env.EEVEEREPO }}/tags | jq -r '.[].name')
         
         for tag in $tags; do
           if [[ $tag == *"$EEVEEVERSION"* ]]; then
@@ -117,7 +111,7 @@ jobs:
     - name: Download EeveeSpotify .deb file from releases
       if: ${{ github.event.inputs.USEACTIONSEEVEE == 'false' }}
       run: |
-        eevee_asset=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ env.EEVEEREPO }}/releases/tags/${{ env.EEVEETAG }} | jq -r '.assets[] | select(.name | startswith("com.eevee.spotify") and endswith("iphoneos-arm.deb")).browser_download_url')
+        eevee_asset=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ env.EEVEEREPO }}/releases/tags/${{ env.EEVEETAG }} | jq -r '.assets[] | select(.name | startswith("com.eevee.spotify") and endswith("iphoneos-arm.deb")).browser_download_url')
         echo "Downloading From: $eevee_asset"
         curl -Lo "Build Components/eevee.deb" "$eevee_asset"
         echo "eevee-arm=Build Components/eevee.deb" >> $GITHUB_ENV
@@ -125,37 +119,29 @@ jobs:
     - name: Download EeveeSpotify .deb file from artifacts
       if: ${{ github.event.inputs.USEACTIONSEEVEE == 'true' }}
       run: |
-        workflow_run_id=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ env.EEVEEREPO }}/actions/workflows/build-swift.yml/runs?status=success&per_page=1" | jq -r '.workflow_runs[0].id')
+        workflow_run_id=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ env.EEVEEREPO }}/actions/workflows/build-swift.yml/runs?status=success&per_page=1" | jq -r '.workflow_runs[0].id')
         echo "Workflow ID: $workflow_run_id"
-        eevee_asset_url=$(curl -sL -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ env.EEVEEREPO }}/actions/runs/$workflow_run_id/artifacts | jq -r '.artifacts[] | select(.name | test("debug|arm64") | not) | .archive_download_url')
+        eevee_asset_url=$(curl -sL -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ env.EEVEEREPO }}/actions/runs/$workflow_run_id/artifacts | jq -r '.artifacts[] | select(.name | test("debug|arm64") | not) | .archive_download_url')
         echo "Downloading From: $eevee_asset_url"
-        curl -LJ -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "$eevee_asset_url" -o "eevee_artifact.zip"
+        curl -LJ -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "$eevee_asset_url" -o "eevee_artifact.zip"
         unzip -q "eevee_artifact.zip" -d extracted_files
         downloaded_file=$(find extracted_files -type f -name "*.deb" -print -quit)
         mv "$downloaded_file" "Build Components/eevee.deb"
         rm -rf extracted_files eevee_artifact.zip
         echo "eevee-arm=Build Components/eevee.deb" >> $GITHUB_ENV
 
-    - name: Get Eevee release name
+    - name: Get Eevee Release Info
+      id: eevee_info
       run: |
-        RELEASE_TITLE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ env.EEVEEREPO }}/releases/tags/${{ env.EEVEETAG }}" | jq -r '.name')
-        echo "EEVEEVERSIONNAME=$RELEASE_TITLE" >> $GITHUB_ENV
-
-    - name: Set Change Version
-      id: set-change-version
-      run: |
-        CHANGEVERSION="${{ github.event.inputs.CHANGEVERSION }}"
-        if [ -z "$CHANGEVERSION" ]; then
-          latest_tag=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/SpotCompiled/SpotC-Plus-Plus/releases/latest | jq -r .tag_name)
-          version=${latest_tag#v}
-          IFS='.' read -r -a version_parts <<< "$version"
-          patch=$(( ${version_parts[2]} + 1 ))
-          new_version="${version_parts[0]}.${version_parts[1]}.$patch"
-          CHANGEVERSION="$new_version"
-        fi
-        echo "CHANGEVERSION=$CHANGEVERSION" >> $GITHUB_ENV
-        echo "Using ChangeVersion: $CHANGEVERSION"
-
+        RESPONSE=$(curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" "https://api.github.com/repos/${{ env.EEVEEREPO }}/releases/tags/${{ env.EEVEETAG }}")
+        RELEASE_TITLE=$(echo "$RESPONSE" | jq -r '.name')
+        RELEASE_BODY=$(echo "$RESPONSE" | jq -r '.body')
+        FORMATTED_TITLE=$(echo "$RELEASE_TITLE" | sed 's/Swift/EeveeSpotify/')
+        echo "EEVEEVERSIONNAME=$FORMATTED_TITLE" >> "$GITHUB_OUTPUT"
+        echo "release_body<<EOF" >> "$GITHUB_OUTPUT"
+        echo "$RELEASE_BODY" >> "$GITHUB_OUTPUT"
+        echo "EOF" >> "$GITHUB_OUTPUT"
+        
     - name: Read Spotify information from vanilla .ipa
       run: |
         cp "${{ env.spotifypath }}" "spotify_temp.zip"
@@ -165,11 +151,11 @@ jobs:
         echo "Vanilla Spotify Version: $VANILLASPOTIFYVERSION"
         rm -rf Payload spotify_temp.zip
 
-    - name: Run Cyan
+    - name: Run Cyan and Prepare Info
       id: package_info
       run: |
-        FINAL_IPA_NAME="SpotC++.v${{ env.CHANGEVERSION }}_v${{ env.VANILLASPOTIFYVERSION }}.ipa"
-        Cyan -i "${{ env.spotifypath }}" -o "${FINAL_IPA_NAME}" -v ${{ env.CHANGEVERSION }} -f "${{ env.eevee-arm }}" -u -w
+        FINAL_IPA_NAME="Spotify_Enhanced_${{ env.VANILLASPOTIFYVERSION }}_${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}.ipa"
+        Cyan -i "${{ env.spotifypath }}" -o "${FINAL_IPA_NAME}" -v ${{ env.VANILLASPOTIFYVERSION }} -f "${{ env.eevee-arm }}" -u -w
         echo "package_name=${FINAL_IPA_NAME}" >> "$GITHUB_OUTPUT"
         echo "job_id=$(echo -n "${{ github.run_id }}-${{ github.run_attempt }}" | shasum -a 1 | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
@@ -180,8 +166,9 @@ jobs:
         APPDB_LINK_TOKEN: ${{ secrets.APPDB_LINK_TOKEN }}
         PACKAGE_PATH: ${{ github.workspace }}/${{ steps.package_info.outputs.package_name }}
         JOB_ID: ${{ steps.package_info.outputs.job_id }}
-        TWEAK_VERSION: ${{ env.CHANGEVERSION }}
+        EEVEEVERSIONNAME: ${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}
         SPOTIFY_VERSION: ${{ env.VANILLASPOTIFYVERSION }}
+        WHATSNEW: ${{ steps.eevee_info.outputs.release_body }}
       run: |
         echo "Step 1: Uploading IPA to appdb..."
         curl -sS -X POST https://api.dbservices.to/v1.7/add_ipa/ \
@@ -216,7 +203,7 @@ jobs:
         echo "ipa_id=${IPA_ID}" >> "$GITHUB_OUTPUT"
 
         echo "Step 4: Editing IPA metadata..."
-        APP_NAME="Spotify v${SPOTIFY_VERSION} + SpotC++ v${TWEAK_VERSION} | Spotify AB"
+        APP_NAME="Spotify v${SPOTIFY_VERSION} + ${EEVEEVERSIONNAME} | Spotify AB"
         curl -sS -X POST https://api.dbservices.to/v1.7/edit_ipa_metadata/ \
           -F "lt=${APPDB_LINK_TOKEN}" \
           -F "id=${IPA_ID}" \
@@ -225,8 +212,8 @@ jobs:
           -F "use_default_privacy_policy=1" \
           -F "use_default_license=1" \
           -F "is_18plus=0" \
-          -F "description=Enhanced Spotify with SpotC++ (EeveeSpotify, Sposify, etc.)" \
-          -F "whatsnew=Latest EeveeSpotify & other tweaks update." \
+          -F "description=Enhanced Spotify with EeveeSpotify features" \
+          -F "whatsnew=${WHATSNEW}" \
           -F "is_public=1" \
           -F "source_name=Johnny's library" \
           -F "developer_name=Spotify AB" \
@@ -244,9 +231,9 @@ jobs:
       run: |
         echo "Step 5: Cleaning up old IPA versions, keeping ID ${NEWEST_IPA_ID}..."
         IPAS_RESPONSE=$(curl -sS -X POST https://api.dbservices.to/v1.7/get_ipas/ -F "lt=${APPDB_LINK_TOKEN}")
-        OLD_IPA_IDS=$(echo "$IPAS_RESPONSE" | jq -r --argjson newest_id "$NEWEST_IPA_ID" '(.data | map(select(.name | test("Spotify.*SpotC|Spotify.*EeveeSpotify"))) | map(select(.id != $newest_id)) | .[].id)')
+        OLD_IPA_IDS=$(echo "$IPAS_RESPONSE" | jq -r --argjson newest_id "$NEWEST_IPA_ID" '(.data | map(select(.name | test("Spotify.*EeveeSpotify"))) | map(select(.id != $newest_id)) | .[].id)')
         if [ -z "$OLD_IPA_IDS" ]; then
-          echo "No old SpotC++ versions found to delete."
+          echo "No old EeveeSpotify versions found to delete."
         else
           echo "Found old IPAs to delete with IDs: $OLD_IPA_IDS"
           for OLD_ID in $OLD_IPA_IDS; do
@@ -264,9 +251,10 @@ jobs:
     - name: Create Draft Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: "v${{ env.CHANGEVERSION }}"
-        name: "SpotC++ v${{ env.CHANGEVERSION }}"
+        tag_name: "v${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}"
+        name: "${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}"
         draft: true
+        body: ${{ steps.eevee_info.outputs.release_body }}
         files: |
           ${{ steps.package_info.outputs.package_name }}
       env:
