@@ -5,7 +5,7 @@ on:
     inputs:
       SPOTURL:
         description: 'Direct URL to Spotify .ipa'
-        default: "https://www.dropbox.com/scl/fi/pa76b63by73tdihijhlns/com.spotify.client_9.0.52_und3fined.ipa?rlkey=unmj8k94xi18wtp2uroqja4vk&st=94rcihiy&dl=1"
+        default: "https://www.dropbox.com/scl/fi/o4239h8z2f8uu1ha6j5z1/com.spotify.client_9.0.58_und3fined.ipa?rlkey=vri20b4cbpqyc36b3nt89ds2j&st=2s9erz9b&dl=1"
         required: true
       CHANGEVERSION:
         description: 'SpotC++ Version Number'
@@ -203,7 +203,7 @@ jobs:
         echo "ipa_id=${IPA_ID}" >> "$GITHUB_OUTPUT"
 
         echo "Step 4: Editing IPA metadata..."
-        APP_NAME="Spotify v${SPOTIFY_VERSION} + ${EEVEEVERSIONNAME} | Spotify AB"
+        APP_NAME="Spotify v${SPOTIFY_VERSION} + SpotC++ ${EEVEEVERSIONNAME} | Spotify AB"
         curl -sS -X POST https://api.dbservices.to/v1.7/edit_ipa_metadata/ \
           -F "lt=${APPDB_LINK_TOKEN}" \
           -F "id=${IPA_ID}" \
@@ -212,7 +212,7 @@ jobs:
           -F "use_default_privacy_policy=1" \
           -F "use_default_license=1" \
           -F "is_18plus=0" \
-          -F "description=Enhanced Spotify with EeveeSpotify features" \
+          -F "description=Enhanced Spotify with SpotC++ features." \
           -F "whatsnew=${WHATSNEW}" \
           -F "is_public=1" \
           -F "source_name=Johnny's library" \
@@ -231,9 +231,9 @@ jobs:
       run: |
         echo "Step 5: Cleaning up old IPA versions, keeping ID ${NEWEST_IPA_ID}..."
         IPAS_RESPONSE=$(curl -sS -X POST https://api.dbservices.to/v1.7/get_ipas/ -F "lt=${APPDB_LINK_TOKEN}")
-        OLD_IPA_IDS=$(echo "$IPAS_RESPONSE" | jq -r --argjson newest_id "$NEWEST_IPA_ID" '(.data | map(select(.name | test("Spotify.*EeveeSpotify"))) | map(select(.id != $newest_id)) | .[].id)')
+        OLD_IPA_IDS=$(echo "$IPAS_RESPONSE" | jq -r --argjson newest_id "$NEWEST_IPA_ID" '(.data | map(select(.name | test("Spotify.*SpotC\+\+"))) | map(select(.id != $newest_id)) | .[].id)')
         if [ -z "$OLD_IPA_IDS" ]; then
-          echo "No old EeveeSpotify versions found to delete."
+          echo "No old SpotC++ versions found to delete."
         else
           echo "Found old IPAs to delete with IDs: $OLD_IPA_IDS"
           for OLD_ID in $OLD_IPA_IDS; do
