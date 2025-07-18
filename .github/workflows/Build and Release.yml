@@ -203,7 +203,7 @@ jobs:
         echo "ipa_id=${IPA_ID}" >> "$GITHUB_OUTPUT"
 
         echo "Step 4: Editing IPA metadata..."
-        APP_NAME="Spotify v${SPOTIFY_VERSION} + EeveeSpotify ${EEVEEVERSIONNAME} | Spotify AB"
+        APP_NAME="Spotify v${SPOTIFY_VERSION} + ${EEVEEVERSIONNAME} | Spotify AB"
         curl -sS -X POST https://api.dbservices.to/v1.7/edit_ipa_metadata/ \
           -F "lt=${APPDB_LINK_TOKEN}" \
           -F "id=${IPA_ID}" \
