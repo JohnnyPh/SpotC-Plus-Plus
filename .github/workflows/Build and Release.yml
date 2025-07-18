@@ -213,7 +213,7 @@ jobs:
           -F "use_default_license=1" \
           -F "is_18plus=0" \
           -F "description=Enhanced Spotify with SpotC++ features." \
-          -F "whatsnew=${WHATSNEW}" \
+          -F "whatsnew=We’re always making changes and improvements to Spotify. To make sure you don’t miss a thing, just keep your Updates turned on." \
           -F "is_public=1" \
           -F "source_name=Johnny's library" \
           -F "developer_name=Spotify AB" \
