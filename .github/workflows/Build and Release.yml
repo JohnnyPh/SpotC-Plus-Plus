@@ -5,7 +5,7 @@ on:
     inputs:
       SPOTURL:
         description: 'Direct URL to Spotify .ipa'
-        default: "https://www.dropbox.com/scl/fi/o4239h8z2f8uu1ha6j5z1/com.spotify.client_9.0.58_und3fined.ipa?rlkey=vri20b4cbpqyc36b3nt89ds2j&st=2s9erz9b&dl=1"
+        default: "https://www.dropbox.com/scl/fi/o4239h8z2f8uu1ha6j5z1/com.spotify.client_9.0.58_und3fined.ipa?rlkey=vri20b4cbpqyc36b3nt89ds2j&st=it65vavp&dl=1"
         required: true
       CHANGEVERSION:
         description: 'SpotC++ Version Number'
@@ -21,6 +21,11 @@ on:
       EEVEEREPO:
         description: 'Override repo for EeveeSpotify'
         required: false
+      create_release:
+        description: "Create a public GitHub release"
+        default: true
+        required: false
+        type: boolean
       upload_to_appdb:
         description: "Upload and Edit Metadata on appdb"
         default: true
@@ -107,6 +112,21 @@ jobs:
         echo "Downloading From: ${{ github.event.inputs.SPOTURL }}"
         curl -L --output "Build Components/spotify.ipa" "${{ github.event.inputs.SPOTURL }}"
         echo "spotifypath=Build Components/spotify.ipa" >> $GITHUB_ENV
+
+    - name: Validate Downloaded IPA
+      run: |
+        file_path="${{ env.spotifypath }}"
+        if [ ! -f "$file_path" ]; then
+          echo "::error::Download failed: IPA file not found at $file_path"
+          exit 1
+        fi
+        file_type=$(file --mime-type -b "$file_path")
+        echo "Detected file type for downloaded file: $file_type"
+        if [[ "$file_type" != "application/x-ios-app" && "$file_type" != "application/zip" ]]; then
+          echo "::error::Validation failed: The downloaded file is not a valid IPA file. Detected type: $file_type."
+          exit 1
+        fi
+        echo "Downloaded IPA is valid."
 
     - name: Download EeveeSpotify .deb file from releases
       if: ${{ github.event.inputs.USEACTIONSEEVEE == 'false' }}
@@ -212,7 +232,7 @@ jobs:
           -F "use_default_privacy_policy=1" \
           -F "use_default_license=1" \
           -F "is_18plus=0" \
-          -F "description=Enhanced Spotify with SpotC++ features." \
+          -F "description=Enhanced Spotify with EeveeSpotify features." \
           -F "whatsnew=We’re always making changes and improvements to Spotify. To make sure you don’t miss a thing, just keep your Updates turned on." \
           -F "is_public=1" \
           -F "source_name=Johnny's library" \
@@ -231,9 +251,9 @@ jobs:
       run: |
         echo "Step 5: Cleaning up old IPA versions, keeping ID ${NEWEST_IPA_ID}..."
         IPAS_RESPONSE=$(curl -sS -X POST https://api.dbservices.to/v1.7/get_ipas/ -F "lt=${APPDB_LINK_TOKEN}")
-        OLD_IPA_IDS=$(echo "$IPAS_RESPONSE" | jq -r --argjson newest_id "$NEWEST_IPA_ID" '(.data | map(select(.name | test("Spotify.*SpotC\+\+"))) | map(select(.id != $newest_id)) | .[].id)')
+        OLD_IPA_IDS=$(echo "$IPAS_RESPONSE" | jq -r --argjson newest_id "$NEWEST_IPA_ID" '(.data | map(select(.name | test("Spotify.*Enhanced"))) | map(select(.id != $newest_id)) | .[].id)')
         if [ -z "$OLD_IPA_IDS" ]; then
-          echo "No old SpotC++ versions found to delete."
+          echo "No old Enhanced Spotify versions found to delete."
         else
           echo "Found old IPAs to delete with IDs: $OLD_IPA_IDS"
           for OLD_ID in $OLD_IPA_IDS; do
@@ -248,12 +268,13 @@ jobs:
         fi
         echo "Cleanup finished."
     
-    - name: Create Draft Release
+    - name: Create GitHub Release
+      if: ${{ inputs.create_release }}
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: "v${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}"
-        name: "${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}"
-        draft: true
+        tag_name: "spotify-enhanced-${{ env.VANILLASPOTIFYVERSION }}-${{ env.EEVEETAG }}"
+        name: "Spotify Enhanced v${{ env.VANILLASPOTIFYVERSION }} + ${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}"
+        draft: false
         body: ${{ steps.eevee_info.outputs.release_body }}
         files: |
           ${{ steps.package_info.outputs.package_name }}
