@@ -273,7 +273,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: "spotify-enhanced-${{ env.VANILLASPOTIFYVERSION }}-${{ env.EEVEETAG }}"
-        name: "Spotify Enhanced v${{ env.VANILLASPOTIFYVERSION }} + ${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}"
+        name: "Spotify v${{ env.VANILLASPOTIFYVERSION }} + ${{ steps.eevee_info.outputs.EEVEEVERSIONNAME }}"
         draft: false
         body: ${{ steps.eevee_info.outputs.release_body }}
         files: |
